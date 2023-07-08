@@ -779,6 +779,9 @@ other preprocessors. Lowest value first. The order between preprocessors with th
         self._compile(simulator_if)
         print()
 
+        self._elaborate(simulator_if)
+        print()
+
         start_time = ostools.get_time()
         report = TestReport(printer=self._printer)
 
@@ -885,6 +888,8 @@ other preprocessors. Lowest value first. The order between preprocessors with th
         """
         simulator_if = self._create_simulator_if()
         self._compile(simulator_if)
+
+        self._elaborate(simulator_if)
         return True
 
     def _create_output_path(self, clean: bool):
@@ -926,6 +931,18 @@ other preprocessors. Lowest value first. The order between preprocessors with th
             printer=self._printer,
             target_files=target_files,
         )
+
+    def _elaborate(self, simulator_if: SimulatorInterface):
+        """
+        Elaborate entire project
+        """
+        for target_file in self._get_testbench_files(simulator_if):
+            simulator_if.elaborate_project(
+                output_path=self._output_path,
+                library_name=target_file.library.name,
+                file_name=target_file.name,
+                target_file=target_file,
+            )
 
     def _get_testbench_files(self, simulator_if: Union[None, SimulatorInterface]):
         """

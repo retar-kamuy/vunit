@@ -210,6 +210,17 @@ class SimulatorInterface(object):  # pylint: disable=too-many-public-methods
         self.setup_library_mapping(project)
         self.compile_source_files(project, printer, continue_on_error, target_files=target_files)
 
+    def elaborate_project(self, output_path, library_name, file_name, target_file):
+        """
+        Elaborate the project
+        """
+        self.elaborate(output_path, os.path.basename(file_name))
+
+    def elaborate(self, output_path, target_filename):
+        """
+        Elaborate
+        """
+
     def simulate(self, output_path, test_suite_name, config, elaborate_only):
         """
         Simulate

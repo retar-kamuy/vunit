@@ -15,6 +15,8 @@ from .incisive import IncisiveInterface
 from .modelsim import ModelSimInterface
 from .nvc import NVCInterface
 from .rivierapro import RivieraProInterface
+from .iverilog import IVerilogInterface
+from .vivado import VivadoInterface
 from . import BooleanOption, ListOfStringOption, VHDLAssertLevelOption
 
 
@@ -35,6 +37,8 @@ class SimulatorFactory(object):
             GHDLInterface,
             IncisiveInterface,
             NVCInterface,
+            IVerilogInterface,
+            VivadoInterface,
         ]
 
     def _extract_compile_options(self):

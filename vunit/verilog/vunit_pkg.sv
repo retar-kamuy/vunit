@@ -66,62 +66,111 @@ class test_runner;
 
    function int setup(string runner_cfg);
       // Ugly hack pending actual dictionary parsing
-      string    prefix;
-      int       index;
+      string   prefix;
+      string   enabled_test_cases;
+      string   output_path;
+      int      index;
 
-      prefix = "enabled_test_cases : ";
       index = -1;
-      for (int i=0; i<runner_cfg.len(); i++) begin
-         if (runner_cfg.substr(i, i+prefix.len()-1) == prefix) begin
-            index = i + prefix.len();
-            break;
-         end
-      end
-
-      if (index == -1) begin
-         $error("Internal error: Cannot find 'enabled_test_cases' key");
-      end
-
-      for (int i=index; i<runner_cfg.len(); i++) begin
-         if (i == runner_cfg.len()-1) begin
-            test_cases_to_run.push_back(runner_cfg.substr(index, i));
-         end
-         else if (runner_cfg[i] == ",") begin
-            test_cases_to_run.push_back(runner_cfg.substr(index, i-1));
-            index = i+2;
-            i++;
-            if (runner_cfg[i] != ",") begin
+      if (! $value$plusargs("enabled_test_cases=%s", enabled_test_cases)) begin
+         prefix = "enabled_test_cases : ";
+         
+         for (int i=index; i<runner_cfg.len(); i++) begin
+            if (runner_cfg.substr(i, i+prefix.len()-1) == prefix) begin
+               index = i + prefix.len();
                break;
+            end
+         end
+
+         if (index == -1) begin
+            $error("Internal error: Cannot find 'enabled_test_cases' key");
+         end
+
+         for (int i=index; i<runner_cfg.len(); i++) begin
+            if (i == runner_cfg.len()-1) begin
+               test_cases_to_run.push_back(runner_cfg.substr(index, i));
+            end
+            else if (runner_cfg[i] == ",") begin
+               test_cases_to_run.push_back(runner_cfg.substr(index, i-1));
+               index = i+2;
+               i++;
+               if (runner_cfg[i] != ",") begin
+                  break;
+               end
+            end
+         end
+      end else begin
+         index = enabled_test_cases.len();
+
+         if (index == 0) begin
+            $error("Internal error: Cannot find 'enabled_test_cases' argument");
+         end
+
+         for (int i=0; i<enabled_test_cases.len(); i++) begin
+            if (i == enabled_test_cases.len()-1) begin
+               test_cases_to_run.push_back(enabled_test_cases.substr(0, i));
+            end
+            else if (enabled_test_cases[i] == ",") begin
+               test_cases_to_run.push_back(enabled_test_cases.substr(0, i-1));
+               index = i+2;
+               i++;
+               if (enabled_test_cases[i] != ",") begin
+                  break;
+               end
             end
          end
       end
 
-      prefix = "output path : ";
       index = -1;
-      for (int i=0; i<runner_cfg.len(); i++) begin
-         if (runner_cfg.substr(i, i+prefix.len()-1) == prefix) begin
-            index = i + prefix.len();
-            break;
-         end
-      end
-
-      if (index == -1) begin
-         $error("Internal error: Cannot find 'output path' key");
-      end
-
-      for (int i=index; i<runner_cfg.len(); i++) begin
-         if (i == runner_cfg.len()-1) begin
-            output_path = runner_cfg.substr(index, i);
-            break;
-         end
-         else if (runner_cfg[i] == ",") begin
-            i++;
-            if (runner_cfg[i] != ",") begin
-               output_path = runner_cfg.substr(index, i-2);
+      if (! $value$plusargs("output_path=%s", output_path)) begin
+         prefix = "output path : ";
+         index = -1;
+         for (int i=0; i<runner_cfg.len(); i++) begin
+            if (runner_cfg.substr(i, i+prefix.len()-1) == prefix) begin
+               index = i + prefix.len();
                break;
             end
          end
+
+         if (index == -1) begin
+            $error("Internal error: Cannot find 'output path' key");
+         end
+
+         for (int i=index; i<runner_cfg.len(); i++) begin
+            if (i == runner_cfg.len()-1) begin
+               output_path = runner_cfg.substr(index, i);
+               break;
+            end
+            else if (runner_cfg[i] == ",") begin
+               i++;
+               if (runner_cfg[i] != ",") begin
+                  output_path = runner_cfg.substr(index, i-2);
+                  break;
+               end
+            end
+         end
+      end else begin
+         index = output_path.len();
+
+         if (index == 0) begin
+            $error("Internal error: Cannot find 'output_path' argument");
+         end
+
+         for (int i=0; i<output_path.len(); i++) begin
+            if (i == output_path.len()-1) begin
+               output_path = output_path.substr(0, i);
+               break;
+            end
+            else if (output_path[i] == ",") begin
+               i++;
+               if (output_path[i] != ",") begin
+                  output_path = output_path.substr(0, i-2);
+                  break;
+               end
+            end
+         end
       end
+
       output_path = search_replace(output_path, "::", ":");
 
       phase = idle;
@@ -135,7 +184,11 @@ class test_runner;
    function void cleanup();
       $fwrite(trace_fd, "test_suite_done\n");
       exit_without_errors = 1;
+`ifdef MODEL_TECH
       $stop(0);
+`else
+      $finish(0);
+`endif
    endfunction
 
    function int loop();
@@ -162,7 +215,11 @@ class test_runner;
                end
                else if (!found) begin
                   $error("Found no \"%s\" test case", test_cases_to_run[j]);
+`ifdef MODEL_TECH
                   $stop(1);
+`else
+                  $finish(1);
+`endif
                   return 0;
                end
             end
@@ -188,8 +245,15 @@ class test_runner;
 
    function int run(string test_name);
       if (phase == init) begin
+`ifdef VCS
+      if ($test$plusargs(test_name)) begin
          test_cases_found.push_back(test_name);
          return 0;
+      end
+`else
+         test_cases_found.push_back(test_name);
+         return 0;
+`endif
       end else if (phase == test_case && test_name == test_cases_to_run[test_idx]) begin
          $fwrite(trace_fd, "test_start:%s\n", test_name);
          return 1;
