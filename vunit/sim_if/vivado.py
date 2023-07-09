@@ -121,7 +121,7 @@ class VivadoInterface(SimulatorInterface):
             args += ['-d', '%s=%s' % (key, value.replace('"','\\"'))]
         args += ['-i', os.path.dirname(source_file.name)]
         args += [source_file.name]
-        args += ['-log', 'xvlog.log']
+        args += ['-log', os.path.join(self._output_path, 'xvlog_%s.log' % os.path.splitext(os.path.basename(source_file.name))[0])]
 
         argsfile = "%s/xvlog_%s.args" % (self._output_path, source_file.library.name)
         write_file(argsfile, "\n".join(args))
@@ -157,7 +157,7 @@ class VivadoInterface(SimulatorInterface):
         for library_dir in self._get_mapped_libraries():
             args += ['-L', '%s=%s' % (library_dir, os.path.join(self._output_path, 'libraries', library_dir))]
         args += ['%s.%s' % (self._libraries[os.path.splitext(target_filename)[0]], os.path.splitext(target_filename)[0])]
-        args += ['-log', os.path.join(self._output_path, 'xelab.log')]
+        args += ['-log', os.path.join(self._output_path, 'xelab_%s.log' % os.path.splitext(target_filename)[0])]
 
         argsfile = '%s/xelab_%s.args' % (self._output_path, os.path.splitext(target_filename)[0])
         write_file(argsfile,'\n'.join(args) + '\n')
@@ -186,15 +186,4 @@ class VivadoInterface(SimulatorInterface):
 
         argsfile = '%s/xsim_%s.args' % (output_path, test_suite_name)
         write_file(argsfile,'\n'.join(args) + '\n')
-        # return run_command([cmd, '-file', argsfile], cwd=self._output_path)
-        result = run_command([cmd, '-file', argsfile], cwd=self._output_path)
-        print('Result: ' + str(result))
-        return result
-
-    @staticmethod
-    def _generic_args(entity_name, generics):
-        """
-        Create Icarus Verilog arguments for generics and parameters
-        """
-        args = ['+%s' % entity_name]
-        return args
+        return run_command([cmd, '-file', argsfile], cwd=self._output_path)
