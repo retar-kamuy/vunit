@@ -25,4 +25,5 @@ VU.add_verilog_builtins()
 VU.add_library("uart_lib").add_source_files(SRC_PATH / "*.sv")
 VU.add_library("tb_uart_lib").add_source_files(SRC_PATH / "test" / "*.sv")
 
+VU.set_sim_option("vhdl_assert_stop_level", "failure")
 VU.main()

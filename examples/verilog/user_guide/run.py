@@ -24,4 +24,5 @@ VU.add_verilog_builtins()
 
 VU.add_library("lib").add_source_files(ROOT / "*.sv")
 
+VU.set_sim_option("vhdl_assert_stop_level", "failure")
 VU.main()

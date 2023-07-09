@@ -18,4 +18,5 @@ LIB = VU.add_library("lib")
 LIB.add_source_files(ROOT / "*.sv")
 LIB.add_source_files(ROOT / "*.vams").set_compile_option("modelsim.vlog_flags", ["-ams"])
 
+VU.set_sim_option("vhdl_assert_stop_level", "failure")
 VU.main()
