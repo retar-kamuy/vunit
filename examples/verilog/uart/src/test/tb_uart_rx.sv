@@ -13,6 +13,7 @@ module tb_uart_rx;
    localparam time_per_bit = (10**9 / baud_rate);
    localparam time_per_half_bit = time_per_bit/2;
    logic clk = 1'b0;
+   logic rst_n = 1'b0;
 
    // Serial input bit
    logic rx = 1'b0;
@@ -20,11 +21,16 @@ module tb_uart_rx;
    // AXI stream for input bytes
    logic overflow;
    logic tready = 1'b0;
-   logic  tvalid;
-   logic  [7:0]tdata;
-   integer     num_overflows = 0;
+   logic tvalid;
+   logic [7:0] tdata;
+   int num_overflows = 0;
 
    `TEST_SUITE begin
+      `TEST_SUITE_SETUP begin
+         wait(clk);
+         #(clk_period * 100ns);
+         rst_n = 1'b1;
+      end
       `TEST_CASE("test_tvalid_low_at_start") begin
          fork : tvalid_low_check
             begin

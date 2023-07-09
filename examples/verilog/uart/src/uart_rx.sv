@@ -4,19 +4,20 @@
 //
 // Copyright (c) 2014-2023, Lars Asplund lars.anders.asplund@gmail.com
 
-module uart_rx(clk, rx, overflow, tready, tvalid, tdata);
+module uart_rx(rst_n, clk, rx, overflow, tready, tvalid, tdata);
    parameter integer cycles_per_bit = 434;
 
+   input logic       rst_n;
    input logic       clk;
 
    // Serial input bit
    input logic       rx;
 
-   output logic      overflow = 1'b0;
+   output logic      overflow;
 
    // AXI stream for input bytes
    input logic       tready;
-   output logic      tvalid = 1'b0;
+   output logic      tvalid;
    output logic [7:0] tdata;
 
    typedef enum       {idle, receiving, done} state_t;
@@ -26,49 +27,55 @@ module uart_rx(clk, rx, overflow, tready, tvalid, tdata);
    logic [$bits(cycles_per_bit)-1:0] cycles = 0;
    logic [$bits($size(data))-1:0]    index;
 
-   always @(posedge clk) begin
-      overflow <= 1'b0;
+   always @(posedge clk or negedge rst_n) begin
+      if (~rst_n) begin
+         overflow <= 1'b0;
+         tvalid <= 1'b0;
+         tdata <= 8'd0;
+      end else begin
+         overflow <= 1'b0;
 
-      case (state)
-        idle : begin
-           if (rx == 1'b0) begin
-              if (cycles == cycles_per_bit/2 - 1) begin
-                 state = receiving;
+         case (state)
+           idle : begin
+              if (rx == 1'b0) begin
+                 if (cycles == cycles_per_bit/2 - 1) begin
+                    state = receiving;
+                    cycles <= 0;
+                    index <= 0;
+                 end else begin
+                    cycles <= cycles + 1;
+                 end
+              end else begin
                  cycles <= 0;
-                 index <= 0;
+              end
+           end
+
+           receiving : begin
+              if (cycles == cycles_per_bit - 1) begin
+                 data <= {rx, data[$size(data)-1:1]};
+                 cycles <= 0;
+
+                 if (index == $size(data) - 1) begin
+                    state <= done;
+                 end else begin
+                    index <= index + 1;
+                 end
               end else begin
                  cycles <= cycles + 1;
               end
-           end else begin
-              cycles <= 0;
            end
-        end
 
-        receiving : begin
-           if (cycles == cycles_per_bit - 1) begin
-              data <= {rx, data[$size(data)-1:1]};
-              cycles <= 0;
-
-              if (index == $size(data) - 1) begin
-                 state <= done;
-              end else begin
-                 index <= index + 1;
-              end
-           end else begin
-              cycles <= cycles + 1;
+           done : begin
+              overflow <= tvalid && !tready;
+              tvalid <= 1'b1;
+              tdata <= data;
+              state <= idle;
            end
-        end
+         endcase
 
-        done : begin
-           overflow <= tvalid && !tready;
-           tvalid <= 1'b1;
-           tdata <= data;
-           state <= idle;
-        end
-      endcase
-
-      if (tvalid == 1'b1 && tready == 1'b1) begin
-         tvalid <= 1'b0;
+         if (tvalid == 1'b1 && tready == 1'b1) begin
+            tvalid <= 1'b0;
+         end
       end
    end
 endmodule

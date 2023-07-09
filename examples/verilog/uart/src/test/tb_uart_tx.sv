@@ -13,17 +13,18 @@ module tb_uart_tx;
    localparam time_per_bit = (10**9 / baud_rate);
    localparam time_per_half_bit = time_per_bit/2;
    logic clk = 1'b0;
+   logic rst_n = 1'b0;
 
    // Serial output bit
    logic tx;
 
    // AXI stream for input bytes
    logic tready;
-   logic  tvalid = 1'b0;
-   logic  [7:0]tdata;
+   logic tvalid = 1'b0;
+   logic [7:0] tdata;
 
-   int     words[$];
-   int     num_recv;
+   int words[$];
+   int num_recv = 0;
 
    task automatic send();
       int word = $urandom_range(255);
@@ -36,10 +37,16 @@ module tb_uart_tx;
    endtask
 
    task automatic check_all_was_received();
-      wait (words.size() == num_recv);
+      int size = words.size();
+      wait (size == num_recv);
    endtask
 
    `TEST_SUITE begin
+      `TEST_SUITE_SETUP begin
+         wait(clk);
+         #(clk_period * 100ns);
+         rst_n = 1'b1;
+      end
       `TEST_CASE("test_send_one_byte") begin
          send();
          check_all_was_received();
@@ -52,6 +59,11 @@ module tb_uart_tx;
       end
    end
 
+   initial begin
+      $dumpfile("wave.vcd");
+      $dumpvars(0, tb_uart_tx);
+   end
+
    `WATCHDOG(10ms);
 
    always begin
@@ -59,7 +71,7 @@ module tb_uart_tx;
       clk <= !clk;
    end
 
-   task automatic uart_recv(output integer data);
+   task automatic uart_recv(output int data);
       data = 0;
       wait(tx == 1'b0);
       #(time_per_half_bit * 1ns);
@@ -74,7 +86,7 @@ module tb_uart_tx;
    endtask
 
    always begin
-      integer data;
+      int data;
       uart_recv(data);
       $info("WIRE: Received data ", data);
       `CHECK_EQUAL(data, words[num_recv]);

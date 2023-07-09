@@ -4,16 +4,17 @@
 //
 // Copyright (c) 2014-2023, Lars Asplund lars.anders.asplund@gmail.com
 
-module uart_tx(clk, tx, tready, tvalid, tdata);
+module uart_tx(rst_n, clk, tx, tready, tvalid, tdata);
    parameter integer cycles_per_bit = 434;
 
+   input logic rst_n;
    input logic clk;
 
    // Serial output bit
-   output logic tx = 1'b1;
+   output logic tx;
 
    // AXI stream for input bytes
-   output logic tready = 1'b1;
+   output logic tready;
    input logic  tvalid;
    input logic [7:0] tdata;
 
@@ -25,11 +26,16 @@ module uart_tx(clk, tx, tready, tvalid, tdata);
    logic [$bits($size(data))-1:0] index;
 
 
-   always @(posedge clk)
+   always @(posedge clk or negedge rst_n)
      begin
+        if (~rst_n) begin
+          tx <= 1'b1;
+          tready <= 1'b1;
+        end else
         case (state)
           idle : begin
              tx <= 1'b1;
+             tready = 1'b1;
              if (tvalid == 1'b1 && tready == 1'b1) begin
                 state <= sending;
                 tready <= 1'b0;
