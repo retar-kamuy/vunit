@@ -35,10 +35,12 @@ class NVCInterface(SimulatorInterface):  # pylint: disable=too-many-instance-att
     supports_colors_in_gui = True
 
     compile_options = [
+        ListOfStringOption("nvc.global_flags"),
         ListOfStringOption("nvc.a_flags"),
     ]
 
     sim_options = [
+        ListOfStringOption("nvc.global_flags"),
         ListOfStringOption("nvc.sim_flags"),
         ListOfStringOption("nvc.elab_flags"),
         StringOption("nvc.heap_size"),
@@ -225,13 +227,15 @@ class NVCInterface(SimulatorInterface):  # pylint: disable=too-many-instance-att
             source_file.get_vhdl_standard(), source_file.library.name, source_file.library.directory
         )
 
+        cmd += source_file.compile_options.get("nvc.global_flags", [])
+
         cmd += ["-a"]
         cmd += source_file.compile_options.get("nvc.a_flags", [])
 
         cmd += [source_file.name]
         return cmd
 
-    def simulate(self, output_path, test_suite_name, config, elaborate_only):
+    def simulate(self, output_path, test_suite_name, config, elaborate_only):  # pylint: disable=too-many-branches
         """
         Simulate with entity as top level using generics
         """
@@ -252,11 +256,15 @@ class NVCInterface(SimulatorInterface):  # pylint: disable=too-many-instance-att
         cmd = self._get_command(self._vhdl_standard, config.library_name, libdir)
 
         cmd += ["-H", config.sim_options.get("nvc.heap_size", "64m")]
+        cmd += config.sim_options.get("nvc.global_flags", [])
 
         cmd += ["-e"]
 
         cmd += config.sim_options.get("nvc.elab_flags", [])
-        cmd += [f"{config.entity_name}-{config.architecture_name}"]
+        if config.vhdl_configuration_name is not None:
+            cmd += [config.vhdl_configuration_name]
+        else:
+            cmd += [f"{config.entity_name}-{config.architecture_name}"]
 
         for name, value in config.generics.items():
             cmd += [f"-g{name}={value}"]
@@ -275,7 +283,7 @@ class NVCInterface(SimulatorInterface):  # pylint: disable=too-many-instance-att
             if wave_file:
                 cmd += [f"--wave={wave_file}"]
 
-        print(" ".join(cmd))
+        print(" ".join([f"'{word}'" if " " in word else word for word in cmd]))
 
         status = True
 

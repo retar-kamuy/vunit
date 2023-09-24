@@ -9,24 +9,22 @@ use work.log_levels_pkg.all;
 use work.string_ops.upper;
 
 package body common_log_pkg is
+  constant is_original_pkg : boolean := true;
 
   procedure write_to_log(
     file log_destination : text;
-    msg : string := "";
+    log_destination_path : string := no_string;
+    msg : string := no_string;
     log_time : time := no_time;
-    log_level : string := "";
-    log_source_name : string := "";
-    str_1, str_2, str_3, str_4, str_5, str_6, str_7, str_8, str_9, str_10 : string := "";
-    val_1, val_2, val_3, val_4, val_5, val_6, val_7, val_8, val_9, val_10 : integer := no_val
+    log_level : string := no_string;
+    log_source_name : string := no_string;
+    log_source_path : string;
+    log_format : natural range 0 to 3;
+    log_source_line_number : natural;
+    log_sequence_number : natural;
+    use_color : boolean;
+    max_logger_name_length : natural
   ) is
-
-    alias file_name is str_1;
-
-    alias format is val_1;
-    alias line_num is val_2;
-    alias sequence_number is val_3;
-    alias use_color is val_4;
-    alias get_max_logger_name_length is val_5;
 
     constant max_time_str : string := time'image(1 sec);
     constant max_time_length : natural := max_time_str'length;
@@ -50,13 +48,13 @@ package body common_log_pkg is
         pad(l, max_time_length - time_string'length);
       end if;
 
-      if use_color = 1 then
+      if use_color then
         write(l, color_start(fg => lightcyan));
       end if;
 
       write(l, time_string);
 
-      if use_color = 1 then
+      if use_color then
         write(l, color_end);
       end if;
     end procedure;
@@ -69,21 +67,21 @@ package body common_log_pkg is
         pad(l, max_level_length - level_name'length);
       end if;
 
-      if use_color = 1 then
+      if use_color then
         color := get_color(log_level_t'value(log_level));
         write(l, color_start(fg => color.fg, bg => color.bg, style => color.style));
       end if;
 
       write(l, upper(level_name));
 
-      if use_color = 1 then
+      if use_color then
         write(l, color_end);
       end if;
     end;
 
     procedure write_source(variable l : inout line; justify : boolean := false) is
     begin
-      if use_color = 1 then
+      if use_color then
         write(l, color_start(fg => white, style => bright));
 
         for i in log_source_name 'range loop
@@ -99,20 +97,20 @@ package body common_log_pkg is
         write(l, log_source_name);
       end if;
 
-      if use_color = 1 then
+      if use_color then
         write(l, color_end);
       end if;
 
       if justify then
-        pad(l, get_max_logger_name_length - log_source_name'length);
+        pad(l, max_logger_name_length - log_source_name'length);
       end if;
 
     end;
 
     procedure write_location(variable l : inout line) is
     begin
-      if file_name /= "" then
-        write(l, " (" & file_name & ":" & integer'image(line_num) & ")");
+      if log_source_path /= "" then
+        write(l, " (" & log_source_path & ":" & integer'image(log_source_line_number) & ")");
       end if;
     end;
 
@@ -147,15 +145,15 @@ package body common_log_pkg is
 
     variable l : line;
   begin
-    if format = raw_format then
+    if log_format = raw_format then
       write_message(l);
 
-    elsif format = level_format then
+    elsif log_format = level_format then
       write_level(l, justify => true);
       write(l, string'(" - "));
       write_message(l, multi_line_align => true);
 
-    elsif format = verbose_format then
+    elsif log_format = verbose_format then
       write_time(l, justify => true);
       write(l, string'(" - "));
       write_source(l, justify => true);
@@ -164,19 +162,19 @@ package body common_log_pkg is
       write(l, string'(" - "));
       write_message(l, multi_line_align => true);
 
-    elsif format = csv_format then
-      write(l, string'(integer'image(sequence_number) & ','));
+    elsif log_format = csv_format then
+      write(l, string'(integer'image(log_sequence_number) & ','));
       write_time(l);
       write(l, ',');
       write_level(l);
       write(l, ',');
 
-      if line_num = 0 then
+      if log_source_line_number = 0 then
         write(l, string'(",,"));
       else
-        write(l, file_name);
+        write(l, log_source_path);
         write(l, ',');
-        write(l, integer'image(line_num));
+        write(l, integer'image(log_source_line_number));
         write(l, ',');
       end if;
 
@@ -185,7 +183,7 @@ package body common_log_pkg is
       write(l, msg);
 
     else
-      assert false report "Illegal format: " & integer'image(format) severity failure;
+      assert false report "Illegal format: " & integer'image(log_format) severity failure;
     end if;
     writeline(log_destination, l);
   end;
