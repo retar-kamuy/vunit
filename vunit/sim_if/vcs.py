@@ -12,7 +12,7 @@ from __future__ import print_function
 import os
 import shutil
 from os.path import join, dirname, abspath, relpath
-import subprocess
+import re
 import sys
 import string
 import logging
@@ -26,7 +26,7 @@ from . import (SimulatorInterface,
 #                                       run_command,
 #)
 from vunit.exceptions import CompileError
-from vunit.vcs_setup_file import SetupFile
+from vunit.sim_if.vcs_setup_file import SetupFile
 from ..vhdl_standard import VHDL
 
 LOGGER = logging.getLogger(__name__)
@@ -148,17 +148,6 @@ class VCSInterface(SimulatorInterface):
         LOGGER.error("Unknown file type: %s", source_file.file_type)
         raise CompileError
 
-#    def compile_source_file_command(self, source_file):
-#        """
-#        Returns the command to compile a single source file
-#        """
-#        if source_file.file_type == 'vhdl':
-#            return self.compile_vhdl_file_command(source_file)
-#        elif source_file.file_type == 'verilog':
-#            return self.compile_verilog_file_command(source_file)
-#
-#        raise CompileError
-
     @staticmethod
     def _vhdl_std_opt(vhdl_standard):
         """
@@ -186,7 +175,11 @@ class VCSInterface(SimulatorInterface):
         args += ['%s' % self._vhdl_std_opt(source_file.get_vhdl_standard())]
         args += ['-work %s' % source_file.library.name]
         args += ['-l %s/vcs_compile_vhdl_file_%s.log' % (self._output_path, source_file.library.name)]
-        args += ['-verbose']
+        if not self._log_level == "debug":
+            args += ['-q']
+            args += ['-nc']
+        else:
+            args += ['-verbose']
         args += source_file.compile_options.get('vhdl_flags', [])
         args += ['%s' % source_file.name]
         argsfile = "%s/vcs_compile_vhdl_file_%s.args" % (self._output_path, source_file.library.name)
@@ -206,9 +199,13 @@ class VCSInterface(SimulatorInterface):
         args += ['-work %s' % source_file.library.name]
         args += source_file.compile_options.get('vlogan_flags', [])
         args += ['-l %s/vcs_compile_verilog_file_%s.log' % (self._output_path, source_file.library.name)]
-        args += ['-V']
-        args += ['-notice']
-        args += ['+libverbose']
+        if not self._log_level == "debug":
+            args += ['-q']
+            args += ['-nc']
+        else:
+            args += ['-V']
+            args += ['-notice']
+            args += ['+libverbose']
         for include_dir in source_file.include_dirs:
             args += ['+incdir+%s' % include_dir]
         for key, value in source_file.defines.items():
@@ -216,6 +213,7 @@ class VCSInterface(SimulatorInterface):
         args += ['+incdir+%s' % os.path.dirname(source_file.name)]
         args += ['%s' % source_file.name]
         argsfile = "%s/vcs_compile_verilog_file_%s.args" % (self._output_path, source_file.library.name)
+
         write_file(argsfile, "\n".join(args))
         # return [cmd, '-full64', '-f', argsfile]
         return [cmd, '-full64', *args]
@@ -238,6 +236,8 @@ class VCSInterface(SimulatorInterface):
         vcs[library_name] = library_path
         vcs.write(self._vcssetup)
 
+        # _remove_file(self._binaries_path)
+
     def _get_mapped_libraries(self):
         """
         Get mapped libraries from synopsys_sim.setup file
@@ -249,9 +249,34 @@ class VCSInterface(SimulatorInterface):
         """
         Elaborates with entity as top level using generics
         """
+        file_dirname = os.path.dirname(file_name)
+        
+        if not file_exists(output_path)
+            os.makedirs(output_path)
+
+        cmd = join(self._prefix, 'vcs')
+        shutil.copy(self._vcssetup, output_path)
         vcsargs = []
-        write_file(dofile, "\n".join(docmds))
-        return run_command([cmd, *vcsargs], cwd=output_path)
+        vcsargs += [test_suite_name]
+        
+        vcsargs += ['-o', '/'.join([output_path, 'simv'])]
+        vcsargs += ['-licqueue']
+        if not self._log_level == "debug":
+            vcsargs += ['-q']
+            vcsargs += ['-nc']
+        else:
+            vcsargs += ['-V']
+            vcsargs += ['-notice']
+        vcsargs += ['-l', f'{output_path}/vcs.log']
+        generics = self._generic_args(file_dirname, test_suite_name, 'runner_cfg')
+        genericsfile = f"{output_path}/vcs.generics"
+        write_file(genericsfile, "\n".join(generics))
+        vcsargs += ['-lca', '-gfile', '%s' % genericsfile]
+        vcsargs += target_file.compile_options.get('vcs.vcs_flags', [])
+
+        
+        write_file(f'{output_path}/vcs.args', "\n".join(vcsargs))
+        return run_command([cmd, '-full64', *vcsargs], cwd=output_path)
 
     def simulate(  # pylint: disable=too-many-locals
         self, output_path, test_suite_name, config, elaborate_only=False
@@ -260,106 +285,51 @@ class VCSInterface(SimulatorInterface):
         Simulates with entity as top level using generics
         """
 
-        launch_gui = self._gui is not False #and not elaborate_only
+        launch_gui = self._gui is not False and not elaborate_only
+        
+        coverage_file = join(output_path, "simv.vdb")
+        self._coverage_files.add(coverage_file)
 
-        LEGAL_CHARS = string.printable
-        ILLEGAL_CHARS = ' <>"|:*%?\\/#&;()'
-        test_name = (
-            "".join(char if (char in LEGAL_CHARS) and (char not in ILLEGAL_CHARS) else "_" for char in test_suite_name) + "_"
-        )
-        print("test = ", test_name)
+        elab_path = '%s/%s.%s' % (self._binaries_path, config.library_name, config.entity_name)
+        cmd = [join(self._prefix, 'simv')]
+        simvargs = config.sim_options.get("vcs.simv_flags", [])
 
-        simv_path = '%s/elab/%s' % (os.path.dirname(output_path), test_name) 
+        if config.sim_options.get("enable_coverage", False):
+            simvargs += ["-cm_name", test_suite_name]
 
+        macro_file_path = f"{output_path}/simv.tcl"
+        self._create_ucli_macro(macro_file_path, launch_gui)
         if launch_gui:
-          simv_path = '%s.gui' % (simv_path) 
-        simv_exec = '%s/simv' % (simv_path) 
-        simv_incr = '%s/dir' % (simv_path) 
-        print("SIMV=", simv_path)
-        if not os.path.isfile(simv_exec):
-          if not os.path.exists(simv_path):
-              os.makedirs(simv_path)
-              os.makedirs(simv_incr)
-          os.symlink(self._vcssetup, '%s/synopsys_sim.setup' % simv_path)
-          os.symlink(self._vcssetup, '%s/synopsys_sim.setup' % output_path)
-        cmd = [join(self._prefix, 'vcs')]
-        print("SETUP=", self._vcssetup, output_path)
-        cmd += ['-full64']
-        cmd += ['-lca']
-        cmd += ['-kdb']
-        cmd += ['-reportstats']
-        cmd += ['-top']
-        cmd += ['%s' % join('%s.%s' % (config.library_name, config.entity_name))]
-        if launch_gui:
-          cmd += ['-debug_access+all+reverse']
+            cmd += ['-gui']
         else:
-          cmd += ['-debug_access']
-        cmd += ['-licqueue']
-        if not self._log_level == "debug":
-          cmd += ['-q']
-          cmd += ['-nc']
-        else:
-          cmd += ['-V']
-          cmd += ['-notice']
-        cmd += ['-Mupdate=0']
-        cmd += ['-Mlib=dir']
-        cmd += ['-l', '%s/vcs.log' % simv_path]
-        #cmd += ['-Mdir=%s' % simv_path]
-        #cmd += ['-o', simv_exec]
+            test_case_name = test_suite_name.split(".")[-1]
+            simvargs += [f"+{test_case_name}"]
 
-        generics = self._generic_args(config.entity_name, config.generics)
-        genericsfile = "%s/vcs.generics" % (simv_path)
-        write_file(genericsfile, "\n".join(generics))
-        cmd += ['-gfile', '%s' % genericsfile]
+        simvargsfile = f"{output_path}/simv.args"
 
-        vcsargs = []
-        vcsargs += config.sim_options.get("vcs.vcs_sim_flags", [])
-        #if config.options.get('vcs_sim_flags'):
-        #    vcsargs += config.options.get('vcs_sim_flags')
-        vcsargsfile = '%s/vcs.args' % simv_path
-        write_file(vcsargsfile, "\n".join(vcsargs))
-        cmd += ['-file', vcsargsfile]
-
-        print("ELAB CMD", cmd)
-        if not run_command(cmd, cwd=simv_path):
-          return False
-
-
-        cmd = [simv_exec]
-        cmd += ['-reportstats']
-        cmd += ['-exitstatus']
-        cmd += ['-l']
-        cmd += ['%s/simv.log' % output_path]
-
-        dofile = '%s/simv.do' % output_path
-        docmds = []
-        if launch_gui:
-            cmd += ['-gui=sx']
-        else:
-            cmd += ['-ucli']
-            cmd += ['-i']
-            cmd += [dofile]
-            docmds += ['run']
-            docmds += ['quit']
-        write_file(dofile, "\n".join(docmds))
-
-        print("SIM CMD", cmd)
         if not elaborate_only:
-            #if not run_command(["ls", 'exitstatus', 
-            #                         simvlogfile],
-            #          cwd=output_path):
-            #    return False
-            if not run_command(cmd, cwd=output_path):
+            # if not run_command([cmd, "-f", simvargsfile], cwd=output_path):
+            if not run_command([cmd, *simvargs], cwd=output_path):
                 return False
         return True
 
+    def _create_ucli_macro(self, output_path, launch_gui):
+        cmd = []
+        if not launch_gui:
+            cmd += ["set fid [dump -file vcdplus.vpd -type VPD"]
+            cmd += ["dump -fid $fid -depth 0"]
+        cmd += ["run"]
+        cmd += ["quit"]
+
+        write_file(output_path, "\n".join(cmd))
+
     @staticmethod
-    def _replace_generic_args(tb_path, entity_name, generics_name):
+    def _replace_generic_args(value):
         re_test_cases = re.sub('enabled_test_cases\s:\s.*,output\spath\s:', 'enabled_test_cases : __all__,output path :', value)
         return re.sub('output\spath\s:\s.*,tb\spath\s:', 'output path : ./,tb @ath :', re_test_cases)
 
     @staticmethod
-    def _generic_args(entity_name, generics):
+    def _generic_args(tb_path, entity_name, generics_name):
         """
         Create VCS arguments for generics and parameters
         """
@@ -368,9 +338,9 @@ class VCSInterface(SimulatorInterface):
         # args = []
         # for name, value in generics.items():
         if _value_needs_quoting(value):
-            args += ['''assign "%s" /%s/%s\n''' % (value, entity_name, name)]
+            args += ['''assign "%s" /%s/%s\n''' % (value, entity_name, generics_name)]
         else:
-            args += ['''assign %s /%s/%s\n''' % (value, entity_name, name)]
+            args += ['''assign %s /%s/%s\n''' % (value, entity_name, generics_name)]
         return args
 
 def _value_needs_quoting(value):
