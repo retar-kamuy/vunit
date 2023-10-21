@@ -11,7 +11,7 @@ Create simulator instances
 import os
 from .activehdl import ActiveHDLInterface
 from .ghdl import GHDLInterface
-from .incisive import IncisiveInterface
+from .xcelium import XceliumInterface
 from .modelsim import ModelSimInterface
 from .nvc import NVCInterface
 from .rivierapro import RivieraProInterface
@@ -35,7 +35,7 @@ class SimulatorFactory(object):
             RivieraProInterface,
             ActiveHDLInterface,
             GHDLInterface,
-            IncisiveInterface,
+            XceliumInterface,
             NVCInterface,
             IVerilogInterface,
             VivadoInterface,

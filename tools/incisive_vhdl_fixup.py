@@ -6,7 +6,7 @@
 
 """
 Perform necessary modifications to VUnit VHDL code to support
-Cadence Incisive
+Cadence Xcelium
 """
 
 import os
@@ -30,7 +30,7 @@ def tee_to_double_writeline(file_name):
     text = re.sub(
         r"^(\s *)TEE\((.*?),(.*?)\)\s *;",
         """\
--- \\g<0> -- Not supported by Cadence Incisive
+-- \\g<0> -- Not supported by Cadence Xcelium
 \\1WriteLine(OUTPUT, \\3);
 \\1WriteLine(\\2, \\3);""",
         text,
@@ -52,7 +52,7 @@ def replace_context_with_use_clauses(file_name):
     text = text.replace(
         "context vunit_lib.vunit_context;",
         """\
--- context vunit_lib.vunit_context; -- Not supported by Cadence Incisive
+-- context vunit_lib.vunit_context; -- Not supported by Cadence Xcelium
 
 use vunit_lib.integer_vector_ptr_pkg.all;
 use vunit_lib.integer_vector_ptr_pool_pkg.all;
@@ -84,7 +84,7 @@ use vunit_lib.run_deprecated_pkg.all;""",
     text = text.replace(
         "context vunit_lib.com_context;",
         """\
--- context vunit_lib.com_context; -- Not supported by Cadence Incisive
+-- context vunit_lib.com_context; -- Not supported by Cadence Xcelium
 use vunit_lib.com_pkg.all;
 use vunit_lib.com_types_pkg.all;
 use vunit_lib.codec_pkg.all;
@@ -104,7 +104,7 @@ use vunit_lib.com_common_pkg.all;
 
 def main():
     """
-    Remove incisive incompatabilities from source code
+    Remove Xcelium incompatabilities from source code
     """
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     for base, _, files in os.walk(root):
