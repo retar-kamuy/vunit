@@ -251,7 +251,7 @@ class VCSInterface(SimulatorInterface):
         """
         file_dirname = os.path.dirname(file_name)
         
-        if not file_exists(output_path)
+        if not file_exists(output_path):
             os.makedirs(output_path)
 
         cmd = join(self._prefix, 'vcs')
@@ -271,7 +271,7 @@ class VCSInterface(SimulatorInterface):
         generics = self._generic_args(file_dirname, test_suite_name, 'runner_cfg')
         genericsfile = f"{output_path}/vcs.generics"
         write_file(genericsfile, "\n".join(generics))
-        vcsargs += ['-lca', '-gfile', '%s' % genericsfile]
+        # vcsargs += ['-lca', '-gfile', '%s' % genericsfile]
         vcsargs += target_file.compile_options.get('vcs.vcs_flags', [])
 
         
@@ -304,9 +304,11 @@ class VCSInterface(SimulatorInterface):
         else:
             test_case_name = test_suite_name.split(".")[-1]
             simvargs += [f"+{test_case_name}"]
+            simvargs += [f"+enabled_test_cases={test_case_name}"]
+            simvargs += [f"+output_path={output_path}"]
 
         simvargsfile = f"{output_path}/simv.args"
-
+        write_file(simvargsfile, '\n'.join(simvargs))
         if not elaborate_only:
             # if not run_command([cmd, "-f", simvargsfile], cwd=output_path):
             if not run_command([cmd, *simvargs], cwd=output_path):
@@ -316,7 +318,7 @@ class VCSInterface(SimulatorInterface):
     def _create_ucli_macro(self, output_path, launch_gui):
         cmd = []
         if not launch_gui:
-            cmd += ["set fid [dump -file vcdplus.vpd -type VPD"]
+            cmd += ["set fid [dump -file vcdplus.vpd -type VPD]"]
             cmd += ["dump -fid $fid -depth 0"]
         cmd += ["run"]
         cmd += ["quit"]
@@ -326,7 +328,7 @@ class VCSInterface(SimulatorInterface):
     @staticmethod
     def _replace_generic_args(value):
         re_test_cases = re.sub('enabled_test_cases\s:\s.*,output\spath\s:', 'enabled_test_cases : __all__,output path :', value)
-        return re.sub('output\spath\s:\s.*,tb\spath\s:', 'output path : ./,tb @ath :', re_test_cases)
+        return re.sub('output\spath\s:\s.*,tb\spath\s:', 'output path : ./,tb path :', re_test_cases)
 
     @staticmethod
     def _generic_args(tb_path, entity_name, generics_name):

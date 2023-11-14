@@ -177,7 +177,7 @@ class test_runner;
       test_idx = 0;
       exit_without_errors = 0;
 
-      trace_fd = $fopen({output_path, "vunit_results"}, "w");
+      trace_fd = $fopen($sformatf("%s/vunit_results", output_path), "w");
       return 1;
    endfunction
 
@@ -245,15 +245,8 @@ class test_runner;
 
    function int run(string test_name);
       if (phase == init) begin
-`ifdef VCS
-      if ($test$plusargs(test_name)) begin
          test_cases_found.push_back(test_name);
          return 0;
-      end
-`else
-         test_cases_found.push_back(test_name);
-         return 0;
-`endif
       end else if (phase == test_case && test_name == test_cases_to_run[test_idx]) begin
          $fwrite(trace_fd, "test_start:%s\n", test_name);
          return 1;
